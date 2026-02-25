@@ -1,0 +1,47 @@
+Step 1: Identify the Budget Categories
+
+The query begins by looking at the organization’s budget table. Each row in this table represents money that has been allocated to a specific category, such as salaries, supplies, or travel.
+
+Step 2: Match Budget Categories to Descriptions
+
+Each budget line contains a code. The code is matched to a description table so that instead of showing technical numbers, the report displays clear category names that people can understand.
+
+Step 3: Collect Actual Spending
+
+The query then looks at the table that contains actual financial transactions. These represent real spending that has occurred throughout the fiscal year.
+
+Step 4: Add Up Spending for Each Account
+
+Since multiple transactions may occur within the same category, the code adds them together. This ensures that all spending for each account is counted correctly.
+
+Step 5: Combine Budget and Spending
+
+The budget and spending data are joined together. Importantly, the query is designed to include every budget category—even if no money has been spent yet. This allows leadership to see unused funds.
+
+Step 6: Filter for the Relevant Budget Area
+
+The query focuses only on a specific portion of the budget by selecting accounts that begin with a defined number. This allows the report to be tailored to a department, grant, or cost center.
+
+Step 7: Group the Results by Category
+
+The data is summarized so that each spending category appears only once in the report. This makes the results easier to read and interpret.
+
+Step 8: Calculate Remaining Funds
+
+The report subtracts the total amount spent from the total amount allocated. This provides a clear picture of how much money is left in each category.
+
+Step 9: Organize the Output
+
+Finally, the results are sorted alphabetically so that users can easily find the categories they are looking for.
+
+Outcome
+
+This report gives leadership and financial staff a clear, easy-to-read view of:
+
+How much money was budgeted
+
+How much has been spent
+
+How much remains available
+
+This supports better decision-making, improved planning, and stronger financial oversight.

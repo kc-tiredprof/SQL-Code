@@ -1,0 +1,20 @@
+select  
+    od.ob_description as Item, 
+    sum(fmb.b_appr_mdebits) as Total_Allocated,
+    coalesce(sum(fma_total.spent), 0) as Total_Spent,
+    sum(fmb.b_appr_mdebits) 
+      - coalesce(sum(fma_total.spent), 0) as Remaining
+from f26_m_budget fmb
+inner join ob_descs od 
+    on od.ob_descs_id = right(fmb.gls_id, 5)
+left join (
+    select 
+        gls_id,
+        sum(mdebits) as spent
+    from f26_m_actuals
+    group by gls_id
+) fma_total
+    on fma_total.gls_id = fmb.gls_id
+where fmb.gls_id like 'insert budget descriptor here%'
+group by od.ob_description
+order by od.ob_description;

@@ -1,0 +1,89 @@
+Line 1
+SELECT stc_person_id, SUM(stc_cred)
+
+This tells the database to return two things:
+
+The student's ID number.
+
+The total number of credits that student has earned from the courses included in the query.
+
+Line 2
+FROM student_acad_cred sac
+
+This sets the main table used in the query.
+This table contains the individual course records for each student, including their grades and credits.
+The table is given the short alias sac so it is easier to reference later in the code.
+
+Line 3–6
+JOIN course_sections_ls cs
+  ON '*' || sac.stc_term || '*' || sac.stc_course_name || '-' || sac.stc_section_no
+     = cs.sec_section_idx
+ AND cs.pos = 1
+
+This connects the student course records to the section information table.
+
+The join works by creating a section identifier from the student course data that matches the section identifier stored in the section table.
+
+The condition cs.pos = 1 restricts the results to sections that are marked as posted, meaning they are finalized and valid.
+
+Line 7–8
+LEFT JOIN courses c
+  ON sac.stc_course_name = c.crs_name
+
+This connects the course information table.
+
+This table contains course attributes such as articulation numbers.
+A LEFT JOIN is used so that student course records remain in the results even if a matching course record is not found.
+
+Line 9
+WHERE cs.sec_local_govt_codes = '11'
+
+This limits the results to courses associated with the specified local government code value of 11.
+
+Line 10
+AND c.crs_standard_articulation_no LIKE 'IAI%'
+
+This restricts the courses to those that are part of the Illinois Articulation Initiative (IAI).
+The LIKE 'IAI%' condition means the articulation number must start with "IAI".
+
+Line 11–15
+AND (
+      sac.stc_term IN ('2025FA','2025SU','2025SP')
+      OR sac.stc_term IS NULL
+    )
+
+This determines which academic terms should be included.
+
+The query includes:
+
+Courses taken in Spring 2025, Summer 2025, or Fall 2025.
+
+Courses with a NULL term, which represent transferred courses.
+
+Line 16–20
+AND (
+      sac.stc_cum_contrib_grade_pts > 1
+      OR (sac.stc_term IS NULL AND sac.stc_verified_grade = '49')
+    )
+
+This defines which courses count toward the credit total.
+
+Courses are included if:
+
+They were taken at the institution and have more than 1 cumulative contributing grade point (meaning the grade counts toward GPA), or
+
+They are transfer courses (term is NULL) and the verified grade code equals 49, which identifies accepted transfer credit.
+
+Line 21
+GROUP BY stc_person_id
+
+This groups all qualifying courses by each student so their credits can be totaled together.
+
+Line 22
+HAVING SUM(stc_cred) > 29.5
+
+After the credits are totaled, this keeps only students whose total qualifying credits are greater than 29.5 (effectively 30 or more credits).
+
+✅ Final Result
+
+The query returns a list of students who have accumulated at least 30 credits of qualifying IAI coursework, including both institutional courses and approved transfer credits.

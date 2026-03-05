@@ -1,0 +1,20 @@
+SELECT stc_person_id, SUM(stc_cred)
+FROM student_acad_cred sac
+JOIN course_sections_ls cs
+  ON '*' || sac.stc_term || '*' || sac.stc_course_name || '-' || sac.stc_section_no
+     = cs.sec_section_idx
+ AND cs.pos = 1
+LEFT JOIN courses c
+  ON sac.stc_course_name = c.crs_name
+WHERE cs.sec_local_govt_codes = '11'
+  AND c.crs_standard_articulation_no LIKE 'IAI%'
+  AND (
+        sac.stc_term IN ('2025FA','2025SU','2025SP')
+        OR sac.stc_term IS NULL
+      )
+  AND (
+        sac.stc_cum_contrib_grade_pts > 1
+        OR (sac.stc_term IS NULL AND sac.stc_verified_grade = '49')
+      )
+GROUP BY stc_person_id
+HAVING SUM(stc_cred) > 29.5;

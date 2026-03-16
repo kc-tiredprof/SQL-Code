@@ -1,4 +1,91 @@
 Line 1
+
+SELECT sac.stc_person_id, SUM(sac.stc_cred)
+
+Returns two things:
+
+The student's ID number.
+
+The total number of credits that the student has earned from all qualifying courses across all terms (not limited to the last year).
+
+Change: Previously only included credits from the last year; now sums all qualifying courses for selected students.
+
+Line 2
+
+FROM student_acad_cred sac
+
+Sets the main table used in the query.
+
+Contains individual course records for each student, including grades and credits.
+
+Alias sac is used for easier referencing later.
+
+No change here.
+
+Line 3–6
+
+LEFT JOIN courses c
+  ON sac.stc_course_name = c.crs_name
+
+Connects the course information table containing attributes like articulation numbers.
+
+LEFT JOIN ensures all student courses are included even if no matching course record exists.
+
+Change: Removed the join to course_sections_ls from the outer query. Section filtering is now done in the subquery used to identify students enrolled in the last year.
+
+Line 7–13
+
+WHERE c.crs_standard_articulation_no LIKE 'IAI%'
+  AND (
+        sac.stc_cum_contrib_grade_pts > 1
+        OR (sac.stc_term IS NULL AND sac.stc_verified_grade = '49')
+      )
+  AND sac.stc_person_id IN (
+        SELECT sac2.stc_person_id
+        FROM student_acad_cred sac2
+        JOIN course_sections_ls cs
+          ON '*' || sac2.stc_term || '*' || sac2.stc_course_name || '-' || sac2.stc_section_no
+             = cs.sec_section_idx
+         AND cs.pos = 1
+        WHERE cs.sec_local_govt_codes = '11'
+          AND sac2.stc_term IN ('2025FA','2025SU','2025SP')
+      )
+
+First part restricts courses to:
+
+IAI courses (LIKE 'IAI%')
+
+Courses that count toward GPA or transfer courses (grade points > 1 or verified transfer grade = 49)
+
+Second part (new subquery):
+
+Filters students enrolled in the last year (2025FA, 2025SU, 2025SP) and sections with cs.pos = 1 and sec_local_govt_codes = '11'.
+
+Ensures credit sum considers all terms, not just last-year courses.
+
+Change: Added a subquery to select students enrolled in the last year. This replaces the previous direct term filtering and allows cumulative credit calculation.
+
+Line 14
+
+GROUP BY sac.stc_person_id
+
+Groups courses by each student so that their cumulative credits can be totaled.
+
+No functional change, but now applies to all qualifying terms for selected students.
+
+Line 15
+
+HAVING SUM(sac.stc_cred) > 29.5
+
+Keeps only students whose total qualifying credits are at least 30.
+
+Works with cumulative credits across all terms.
+
+Change: Threshold now applies to all-term credit total, not just last-year courses.
+
+✅ Final Result
+
+Returns a list of students who were enrolled in the last year and have accumulated at least 30 credits of qualifying IAI coursework, including both institutional and approved transfer credits.Line 1
 SELECT stc_person_id, SUM(stc_cred)
 
 This tells the database to return two things:

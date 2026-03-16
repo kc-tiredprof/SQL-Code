@@ -24,3 +24,48 @@ WHERE cs.sec_local_govt_codes = '11'
       )
 GROUP BY stc_person_id
 HAVING SUM(stc_cred) > 29.5;
+
+Added: 3/16/26
+Credit calculation:
+
+Original: SUM only included last-year courses.
+
+Updated: SUM now includes all qualifying courses across all terms.
+
+Student selection:
+
+Original: Filtered directly on stc_term in the main query.
+
+Updated: Added subquery to select students enrolled in the last year.
+
+Reason: Preserves last-year enrollment requirement while summing all credits.
+
+Join to sections:
+
+Original: Outer query joined course_sections_ls.
+
+Updated: Outer query no longer joins sections; subquery handles section filtering.
+
+Reason: Reduces duplication and allows cumulative sum.
+
+Transfer & GPA rules:
+
+Original: Applied in main WHERE.
+
+Updated: Still applied in main WHERE.
+
+Reason: Logic for counting valid credits is preserved.
+
+Terms filter:
+
+Original: Included terms directly in main WHERE.
+
+Updated: Moved to subquery for student selection.
+
+Reason: Ensures cumulative credits count all terms, not just last-year courses.
+
+Performance / clarity:
+
+Original query limited scope and summed only last-year credits.
+
+Updated query separates student selection from credit summation, improving clarity and matching intended logic.

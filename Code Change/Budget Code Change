@@ -1,0 +1,66 @@
+Title
+
+Creation of Budget vs. Actual Summary Query by Object Description
+
+System
+
+Financial Reporting (General Ledger)
+
+Purpose
+
+This change introduces a new query to summarize budget allocations, actual spending, and remaining balances by object description. The goal is to support financial monitoring, reporting, and decision-making by providing a high-level view of spending categories.
+
+Business Need
+
+Previously, reports required manual aggregation or multiple steps to determine remaining balances across object categories. This solution automates the process and ensures:
+
+All budget lines are included, even if no spending has occurred.
+
+Spending and allocations are summarized correctly.
+
+Financial leaders can quickly identify remaining funds or overspending.
+
+This approach is particularly relevant for institutions using enterprise resource planning platforms such as Ellucian.
+
+Code Implemented
+select  
+    od.ob_description as Item, 
+    sum(fmb.b_appr_mdebits) as Total_Allocated,
+    coalesce(sum(fma_total.spent), 0) as Total_Spent,
+    sum(fmb.b_appr_mdebits) 
+      - coalesce(sum(fma_total.spent), 0) as Remaining
+from f26_m_budget fmb
+inner join ob_descs od 
+    on od.ob_descs_id = right(fmb.gls_id, 5)
+left join (
+    select 
+        gls_id,
+        sum(mdebits) as spent
+    from f26_m_actuals
+    group by gls_id
+) fma_total
+    on fma_total.gls_id = fmb.gls_id
+where fmb.gls_id like 'budget number here%'
+group by od.ob_description
+order by od.ob_description;
+Impact
+
+Improves financial reporting accuracy.
+
+Reduces manual work.
+
+Supports transparency and accountability.
+
+Can be reused for other departments or budget segments.
+
+Testing and Validation
+
+The query was tested to confirm:
+
+All budget lines appear in the output.
+
+Categories without spending return a value of zero.
+
+Spending totals match transactional reports.
+
+No duplication occurs when multiple transactions exist.

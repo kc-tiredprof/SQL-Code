@@ -1,0 +1,106 @@
+WITH latest_terms AS (
+    SELECT
+        RIGHT(stc_term, 2) AS term_suffix,
+        MAX(CASE
+            WHEN RIGHT(stc_term, 2) IN ('FA','SU') THEN CAST(LEFT(stc_term, 4) AS INT) + 1
+            ELSE CAST(LEFT(stc_term, 4) AS INT)
+        END) AS current_year_for_suffix
+    FROM student_acad_cred
+    GROUP BY RIGHT(stc_term, 2)
+),
+modal_start_dates AS (
+    SELECT stc_term, stc_start_date AS common_start_date
+    FROM (
+        SELECT stc_term, stc_start_date,
+               ROW_NUMBER() OVER (PARTITION BY stc_term ORDER BY COUNT(*) DESC, stc_start_date) AS rn
+        FROM student_acad_cred
+        GROUP BY stc_term, stc_start_date
+    ) x WHERE rn = 1
+),
+current_term_windows AS (
+    SELECT 
+        lt.term_suffix,
+        (CURRENT_DATE - ms.common_start_date) AS active_window_days
+    FROM latest_terms lt
+    JOIN modal_start_dates ms 
+      ON ms.stc_term = (
+         CASE WHEN lt.term_suffix IN ('FA','SU') THEN (lt.current_year_for_suffix - 1)::text 
+              ELSE lt.current_year_for_suffix::text END 
+         || lt.term_suffix
+      )
+),
+student_hs_status AS (
+    SELECT 
+        iav.insta_person_id,
+        MAX(ya.insta_year_attend_end::int) AS max_year_end
+    FROM custom_insights.institutions_attend_view iav
+    INNER JOIN dbo.institutions inst ON iav.insta_institutions_id = inst.institutions_id 
+    LEFT JOIN years_attended ya ON ya.institutions_attend_id = iav.institutions_attend_id
+    WHERE (inst.inst_type LIKE '%HS%' OR inst.inst_type LIKE 'HOSC')
+    GROUP BY iav.insta_person_id
+),
+course_level_data AS (
+    SELECT DISTINCT
+        sac.student_acad_cred_id, -- Unique identifier used here for distinctness
+        sac.stc_person_id,
+        sac.stc_cred,
+        sac.stc_term,
+        RIGHT(sac.stc_term, 2) AS term_suffix,
+        CASE
+            WHEN RIGHT(sac.stc_term, 2) IN ('FA','SU') THEN CAST(LEFT(sac.stc_term, 4) AS INT) + 1
+            ELSE CAST(LEFT(sac.stc_term, 4) AS INT)
+        END AS term_year,
+        CASE
+            WHEN LEFT(sac.stc_section_no, 2) = 'DC' THEN 'Dual Credit'
+            WHEN LEFT(sac.stc_section_no, 2) = 'KC' THEN 'KC Now'
+            ELSE 'Normal Enrollment'
+        END AS "Dual Credit Students",
+        CASE 
+            WHEN shs.max_year_end > (
+                CASE 
+                    WHEN RIGHT(sac.stc_term, 2) IN ('FA','SU') THEN CAST(LEFT(sac.stc_term, 4) AS INT) + 1
+                    ELSE CAST(LEFT(sac.stc_term, 4) AS INT)
+                END + 1
+            ) THEN 'Yes'
+            ELSE 'No'
+        END AS "Freshman/Sophomore Student",
+        CASE
+            WHEN sac.stc_term LIKE '%C%' THEN 'Yes'
+            ELSE 'No'
+        END AS "Correctional/Other",
+        ms.common_start_date,
+        ctw.active_window_days,
+        (sac.student_acad_cred_adddate::date - ms.common_start_date) AS days_from_start_to_add,
+        lt.current_year_for_suffix
+    FROM student_acad_cred sac
+    INNER JOIN stc_statuses ss 
+        ON sac.student_acad_cred_id = ss.student_acad_cred_id AND ss.pos = 1
+    LEFT JOIN grades g 
+        ON sac.stc_verified_grade = g.grades_id
+    INNER JOIN modal_start_dates ms 
+        ON ms.stc_term = sac.stc_term
+    INNER JOIN current_term_windows ctw 
+        ON ctw.term_suffix = RIGHT(sac.stc_term, 2)
+    INNER JOIN latest_terms lt 
+        ON lt.term_suffix = RIGHT(sac.stc_term, 2)
+    LEFT JOIN student_hs_status shs
+        ON sac.stc_person_id = shs.insta_person_id
+    WHERE (ss.stc_status IN ('A','N') OR (ss.stc_status = 'D' AND g.grd_grade = 'W'))
+      AND sac.stc_cred > 0
+      AND (sac.student_acad_cred_adddate::date - ms.common_start_date) <= ctw.active_window_days
+)
+-- FINAL SELECT: Excludes the ID but maintains the distinctness logic from the CTE
+SELECT
+    stc_person_id,
+    stc_cred,
+    stc_term,
+    term_suffix,
+    term_year,
+    "Dual Credit Students",
+    "Freshman/Sophomore Student",
+    "Correctional/Other",
+    common_start_date,
+    active_window_days AS current_point_in_time_limit,
+    days_from_start_to_add
+FROM course_level_data
+WHERE term_year BETWEEN current_year_for_suffix - 4 AND current_year_for_suffix;

@@ -1,0 +1,73 @@
+WITH student_hs_status AS (
+    SELECT 
+        iav.insta_person_id,
+        MAX(ya.insta_year_attend_end::int) AS max_year_end
+    FROM custom_insights.institutions_attend_view iav
+    INNER JOIN dbo.institutions inst ON iav.insta_institutions_id = inst.institutions_id 
+    LEFT JOIN years_attended ya ON ya.institutions_attend_id = iav.institutions_attend_id
+    WHERE (inst.inst_type LIKE '%HS%' OR inst.inst_type LIKE 'HOSC')
+    GROUP BY iav.insta_person_id
+),
+course_level_data AS (
+    SELECT DISTINCT
+        sac.student_acad_cred_id,
+        sac.stc_person_id,
+        sac.stc_cred,
+        sac.stc_term,
+        RIGHT(sac.stc_term, 2) AS term_suffix,
+        CASE
+            WHEN RIGHT(sac.stc_term, 2) IN ('FA','SU') THEN CAST(LEFT(sac.stc_term, 4) AS INT) + 1
+            ELSE CAST(LEFT(sac.stc_term, 4) AS INT)
+        END AS term_year,
+        CASE
+            WHEN LEFT(sac.stc_section_no, 2) = 'DC' THEN 'Dual Credit'
+            WHEN LEFT(sac.stc_section_no, 2) = 'KC' THEN 'KC Now'
+            ELSE 'Normal Enrollment'
+        END AS "Dual Credit Students",
+        CASE 
+            WHEN shs.max_year_end > (
+                CASE 
+                    WHEN RIGHT(sac.stc_term, 2) IN ('FA','SU') THEN CAST(LEFT(sac.stc_term, 4) AS INT) + 1
+                    ELSE CAST(LEFT(sac.stc_term, 4) AS INT)
+                END + 1
+            ) THEN 'Yes'
+            ELSE 'No'
+        END AS "Freshman/Sophomore Student",
+        CASE
+            WHEN sac.stc_term LIKE '%C%' THEN 'Yes'
+            ELSE 'No'
+        END AS "Correctional/Other"
+    FROM student_acad_cred sac
+    INNER JOIN stc_statuses ss 
+        ON sac.student_acad_cred_id = ss.student_acad_cred_id AND ss.pos = 1
+    LEFT JOIN grades g 
+        ON sac.stc_verified_grade = g.grades_id
+    LEFT JOIN student_hs_status shs
+        ON sac.stc_person_id = shs.insta_person_id
+    WHERE (ss.stc_status IN ('A','N') OR (ss.stc_status = 'D' AND g.grd_grade = 'W'))
+      AND sac.stc_cred > 0
+)
+SELECT
+    stc_person_id,
+    stc_cred,
+    stc_term,
+    term_suffix,
+    term_year,
+    "Dual Credit Students",
+    "Freshman/Sophomore Student",
+    "Correctional/Other"
+FROM course_level_data
+WHERE term_year BETWEEN (
+    SELECT MAX(CASE
+        WHEN term_suffix IN ('FA','SU') THEN CAST(LEFT(stc_term, 4) AS INT) + 1
+        ELSE CAST(LEFT(stc_term, 4) AS INT)
+    END)
+    FROM (SELECT stc_term, RIGHT(stc_term, 2) AS term_suffix FROM student_acad_cred) t
+) - 4
+AND (
+    SELECT MAX(CASE
+        WHEN term_suffix IN ('FA','SU') THEN CAST(LEFT(stc_term, 4) AS INT) + 1
+        ELSE CAST(LEFT(stc_term, 4) AS INT)
+    END)
+    FROM (SELECT stc_term, RIGHT(stc_term, 2) AS term_suffix FROM student_acad_cred) t
+);

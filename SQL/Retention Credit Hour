@@ -1,0 +1,58 @@
+WITH student_credits AS (
+    select
+        stc_person_id as ID,
+        SUM(sac.stc_cred) as Credits,
+        case
+            when gender = 'F' then 'Female'
+            when gender = 'M' then 'Male'
+            else 'Unknown'
+        end as Gender,
+        extract (year from age('2025-08-18'::date, birth_date::date)) as Age,
+        case
+            when extract (year from age('2025-08-18'::date, birth_date::date)) >= 21 then '21 and Over'
+            when extract (year from age('2025-08-18'::date, birth_date::date)) < 21 then 'Under 21'
+            else 'Unknown'
+        end as Age_group,
+        case
+            when MAX(case when sac.stc_course_name IN (
+                'ENGL-100',
+                'ENGL-100A',
+                'ENGL-101A',
+                'MATH-101',
+                'MATH-102',
+                'MATH-107',
+                'MATH-030',
+                'MATH-034'
+            ) then 1 else 0 end) = 1 then 'Yes'
+            else 'No'
+        end as Developmental_Course
+    from student_acad_cred sac
+    INNER JOIN stc_statuses ss
+                ON sac.student_acad_cred_id = ss.student_acad_cred_id
+               AND pos = 1
+    LEFT JOIN grades
+               ON stc_verified_grade = grades_id
+    INNER JOIN person
+               ON stc_person_id = person.id
+    where(
+                stc_status IN ('A','N')
+                OR (stc_status = 'D' AND grd_grade = 'W')
+            )
+            AND stc_term = '2025FA'
+    GROUP BY
+        stc_person_id,
+        gender,
+        birth_date
+)
+SELECT
+    ID,
+    Credits,
+    case
+        when Credits >= 12 then 'Full Time'
+        else 'Part Time'
+    end as Credit_Status,
+    Gender,
+    Age,
+    Age_group,
+    Developmental_Course
+FROM student_credits

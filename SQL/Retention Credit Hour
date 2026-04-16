@@ -3,15 +3,38 @@ WITH PellEligibility AS (
         split_part(ta_2025_id, '*', 1) AS StudentID,
         CASE
             WHEN MAX(
-                CASE 
-                    WHEN split_part(ta_2025_id, '*', 2) = 'PELL' THEN 1 
-                    ELSE 0 
+                CASE
+                    WHEN split_part(ta_2025_id, '*', 2) = 'PELL' THEN 1
+                    ELSE 0
                 END
             ) = 1 THEN 'Pell Eligible'
             ELSE 'Non Pell Eligible'
         END AS Eligibility
     FROM ta_2025
     GROUP BY split_part(ta_2025_id, '*', 1)
+),
+StudentMajor AS (
+    SELECT DISTINCT
+        spv.stpr_student AS StudentID,
+        spv.stpr_acad_program AS Major
+    FROM custom_insights.student_programs_view spv
+    LEFT JOIN stpr_dates d
+        ON spv.student_programs_id = d.student_programs_id
+        AND d.pos = 1
+    INNER JOIN student_acad_cred sac
+        ON sac.stc_person_id = spv.stpr_student
+        AND sac.stc_term = '2025FA'
+        AND spv.student_programs_chgdate > sac.stc_start_date
+    WHERE (
+            spv.stpr_acad_program <> 'NONC.001.ENRL'
+            OR NOT EXISTS (
+                SELECT 1
+                FROM custom_insights.student_programs_view spv2
+                WHERE spv2.stpr_student = spv.stpr_student
+                  AND spv2.stpr_acad_program <> 'NONC.001.ENRL'
+            )
+          )
+      AND (d.stpr_start_date != d.stpr_end_date)
 ),
 student_credits AS (
     SELECT
@@ -84,7 +107,6 @@ student_credits AS (
             gender,
             birth_date,
             inst.INSTA_EXT_GPA
-
     ) base
     LEFT JOIN dbo.STUDENTS_LS
         ON base.ID = STUDENTS_ID
@@ -120,7 +142,7 @@ Disabilities AS (
     AND (PHL_DIS_END_DATE > '2022-06-30' OR PHL_DIS_END_DATE IS NULL)
     AND PD.POS = 1
 )
-select DISTINCT
+SELECT DISTINCT
     sc.ID,
     sc.Credits,
     sc.Credit_Status,
@@ -131,10 +153,13 @@ select DISTINCT
     COALESCE(pe.Eligibility, 'Non Pell Eligible') AS PellEligibility,
     sc.Developmental_Course,
     sc.Division,
-    sc.HSGPA
+    sc.HSGPA,
+    sm.Major
 FROM student_credits sc
 LEFT JOIN PellEligibility pe
     ON sc.ID = pe.StudentID
 LEFT JOIN Disabilities d
     ON d.PERSON_HEALTH_ID = sc.ID
+LEFT JOIN StudentMajor sm
+    ON sm.StudentID = sc.ID
 ORDER BY sc.ID;

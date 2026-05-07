@@ -1,0 +1,16 @@
+SELECT
+    cs_faculty1_id,
+    cs_faculty1_name,
+    SUM(cs_billing_credits) AS total_billing_credits
+FROM custom_insights.course_sections_detail_view csdv
+INNER JOIN (
+    SELECT DISTINCT perpos_hrp_id
+    FROM perpos
+    WHERE perpos_position_id LIKE 'ADJ%'
+      AND (perpos_end_date IS NULL OR perpos_end_date > '2025-07-01')
+) adj ON csdv.cs_faculty1_id = adj.perpos_hrp_id
+WHERE cs_term = '2026SP'
+  AND cs_status = 'A'
+GROUP BY cs_faculty1_id, cs_faculty1_name
+HAVING SUM(cs_billing_credits) >= 9
+ORDER BY total_billing_credits DESC;

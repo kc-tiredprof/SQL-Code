@@ -1,7 +1,87 @@
-SELECT sac.stc_person_id, SUM(sac.stc_cred)
+SELECT
+    'DA' as record_type,
+    '501' as District_number,
+    '01' as College_number,
+    replace(p.ssn, '-','') as SSN,
+    '26' as year,
+    case
+        when p.gender = 'M' then '1'
+        when p.gender = 'F' then '2'
+    end as gender,
+    left(replace(p.birth_date::text, '-', ''),8) as birth_date,
+    '9' as opt_in,
+    rpad(p.first_name, 16, ' ') as first_name,
+    rpad(p.last_name, 30, ' ') as last_name,
+    rpad(p.middle_name, 16, ' ') as middle_name,
+    case
+        when p.ethnic = '4' then '1'
+        when p.ethnic is null then '9'
+        else '0'
+    end as Hispanic,
+    case
+        when p.ethnic = '1' then '1'
+        else '0'
+    end as Asian,
+    case
+        when p.ethnic = '2' then '2'
+        else '0'
+    end as native,
+    case
+        when p.ethnic = '3' then '3'
+        else '0'
+    end as Black,
+    case
+        when p.ethnic = '5' then '5'
+        else '0'
+    end as White,
+    case
+        when p.ethnic = '6' then '6'
+        else '0'
+    end as nonresident,
+    case
+        when p.ethnic = '7' then '7'
+        else '0'
+    end as hawaiian,
+    case
+        when p.ethnic = '8' then '8'
+        else '0'
+    end as unknown,
+    case
+        when p.ethnic = '9' then '9'
+        else '0'
+    end as MENA,
+    rpad(al.address_lines, 100, ' ') as street_address,
+    '0000000000' as unit_number,
+    rpad(a.city, 40, ' ') as City,
+    a.state as State,
+    a.zip as Zip,
+    '0000' as four_code,
+    rpad(p.suffix, 8, ' ') as suffix,
+    sac.stc_person_id as ID,
+    ip.last_name as high_school,
+    SUM(sac.stc_cred)
 FROM student_acad_cred sac
+INNER JOIN person p
+    ON p.id = sac.stc_person_id
+INNER JOIN address_ls al
+    ON p.preferred_address = al.address_id
+    and al.pos = 1
+INNER JOIN address a
+    ON p.preferred_address = a.address_id
+INNER JOIN (
+    SELECT DISTINCT ON (insta_person_id)
+        insta_person_id,
+        insta_institutions_id
+    FROM custom_insights.institutions_attend_view
+    ORDER BY insta_person_id, institutions_attend_chgdate DESC
+) iav ON iav.insta_person_id = sac.stc_person_id
+INNER JOIN institutions i
+    ON i.institutions_id = iav.insta_institutions_id
+    AND i.inst_type IN ('HSPR', 'OTHS', 'HSPB', 'HOSC')
+LEFT JOIN person ip
+    ON ip.id = iav.insta_institutions_id
 LEFT JOIN courses c
-  ON sac.stc_course_name = c.crs_name
+    ON sac.stc_course_name = c.crs_name
 WHERE c.crs_standard_articulation_no LIKE 'IAI%'
   AND (
         sac.stc_cum_contrib_grade_pts > 1
@@ -15,7 +95,8 @@ WHERE c.crs_standard_articulation_no LIKE 'IAI%'
              = cs.sec_section_idx
          AND cs.pos = 1
         WHERE cs.sec_local_govt_codes = '11'
-          AND sac2.stc_term IN ('2025FA','2025SU','2025SP')
+          AND sac2.stc_term IN ('2025FA','2025SU','2026SP')
       )
-GROUP BY sac.stc_person_id
+GROUP BY sac.stc_person_id, p.ssn, p.gender, p.birth_date, p.first_name, p.last_name,
+         p.middle_name, p.ethnic, al.address_lines, a.city, a.state, a.zip, p.suffix, ip.last_name
 HAVING SUM(sac.stc_cred) > 29.5;

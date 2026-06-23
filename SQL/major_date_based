@@ -1,0 +1,36 @@
+WITH base AS (
+    SELECT spv.stpr_student
+         , stpr_status
+         , stpr_start_date
+         , stpr_end_date
+         , stpr_acad_program
+    FROM custom_insights.student_programs_view spv
+    LEFT OUTER JOIN stpr_statuses 
+        ON spv.student_programs_id = stpr_statuses.student_programs_id 
+        AND stpr_statuses.pos = '1'
+    LEFT OUTER JOIN stpr_dates 
+        ON spv.student_programs_id = stpr_dates.student_programs_id 
+        AND stpr_dates.pos = '1'
+    WHERE
+        (GREATEST(student_programs_adddate, student_programs_chgdate) 
+         - LEAST(student_programs_adddate, student_programs_chgdate)) >= INTERVAL '7 days'
+        AND stpr_start_date < '2026-06-30'
+        AND (stpr_end_date > '2025-05-01' OR stpr_end_date IS NULL)
+        AND stpr_student IN ()
+ ),
+flags AS (
+    SELECT *,
+        COUNT(*) FILTER (WHERE stpr_acad_program <> 'NONC.0001.ENRL') 
+            OVER (PARTITION BY stpr_student) AS non_nonc_count,
+        COUNT(*) FILTER (WHERE stpr_acad_program NOT IN ('NONC.0001.ENRL','BAC.0101.ENRL')) 
+            OVER (PARTITION BY stpr_student) AS third_major_count
+    FROM base
+)
+SELECT stpr_student
+     , stpr_status
+     , stpr_start_date
+     , stpr_end_date
+     , stpr_acad_program
+FROM flags
+WHERE NOT (stpr_acad_program = 'NONC.0001.ENRL' AND non_nonc_count > 0)
+  AND NOT (stpr_acad_program = 'BAC.0101.ENRL' AND third_major_count > 0) 
